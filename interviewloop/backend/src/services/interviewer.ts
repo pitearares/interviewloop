@@ -33,11 +33,15 @@ export interface TranscriptTurn {
   text: string;
 }
 
+export type InterviewKind = "CODING" | "THEORY";
+
 /** Everything the decision layer is allowed to see about a session. */
 export interface SessionSnapshot {
   problemTitle: string;
   problemPrompt: string;
   problemConstraints: string;
+  /** CODING = live editor session; THEORY = oral Q&A with no editor. */
+  interviewKind: InterviewKind;
   language: string;
   currentCode: string;
   /** Code as of the previous consulted evaluation, for diff context. */
@@ -94,6 +98,13 @@ export function applyGate(s: SessionSnapshot): GateResult {
     return { consult: false, reason: "intervention budget spent" };
   }
 
+  if (s.interviewKind === "THEORY") {
+    // Oral interview: there is no editor to watch, so the code-based branches
+    // below don't apply. Past the cooldowns above, a quiet candidate should be
+    // re-engaged — the interviewer drives a theory session, not the editor.
+    return { consult: true, reason: `theory session, trigger '${s.trigger}' passed cooldowns` };
+  }
+
   if (!s.currentCode.trim()) {
     // Blank editor: don't pepper them while they think, but do check in
     // if they've been silent for a long time.
@@ -125,32 +136,57 @@ const INTERVIEWER_PERSONA = `You are a friendly but rigorous technical interview
 - You never comment on trivial things (formatting, variable names in progress, half-typed lines).
 - Staying silent is often the best move — a candidate making steady progress should not be interrupted.`;
 
+const THEORY_PERSONA = `You are a friendly but rigorous technical interviewer conducting an ORAL knowledge interview over chat. There is no code editor — the whole interview is the conversation. The problem statement below contains your question bank.
+
+- Ask ONE question at a time from the question bank, in any order you judge best. Never dump multiple questions at once.
+- After the candidate answers, briefly react (one sentence), then either ask a follow-up that probes deeper into the same topic, or move to the next question.
+- If an answer is wrong or shallow, don't lecture — ask a guiding follow-up that lets them discover the gap ("What would happen if...?").
+- Never reveal full model answers during the interview; save judgment for the final debrief.
+- Keep every message short: 1-3 sentences. This is a conversation, not a textbook.
+- If the candidate is silent for a long stretch, gently re-engage with the current question or offer to move on.`;
+
+/** Picks the persona matching the session type. */
+function personaFor(kind: SessionSnapshot["interviewKind"]): string {
+  return kind === "THEORY" ? THEORY_PERSONA : INTERVIEWER_PERSONA;
+}
+
 /**
  * Builds the cached system prompt: persona + decision rubric + the problem.
  * These are static per session, so the whole block carries a cache_control
  * breakpoint and is only paid for once per cache window.
  */
 function buildSystemBlocks(s: SessionSnapshot) {
-  return [
-    {
-      type: "text" as const,
-      text: `${INTERVIEWER_PERSONA}
+  const rubric =
+    s.interviewKind === "THEORY"
+      ? `## Decision rubric
 
-## Decision rubric
+When shown the session state, choose exactly one action:
+- "silent" — the candidate is typing or was spoken to very recently. Default here only when the ball is clearly in their court.
+- "ask_question" — ask the next question from the bank, or a follow-up on their last answer. This is your primary action in a theory interview.
+- "nudge" — the candidate is stuck on the current question; give a small hint or offer to move to a different question.
+- "ask_explain" — the candidate gave a terse answer; ask them to elaborate or give an example.`
+      : `## Decision rubric
 
 When shown the session state, choose exactly one action:
 - "silent" — the candidate is progressing, thinking, or was recently spoken to. Default to this when unsure.
 - "ask_question" — a targeted question about their approach, an edge case, or complexity. Use when the code reveals a misunderstanding or a discussion-worthy choice.
 - "nudge" — a small hint for a candidate who is stuck or heading down a dead end. Use sparingly, only when they've been stalled for a while.
-- "ask_explain" — ask the candidate to talk through their approach out loud. Use when they've been coding silently and their direction isn't clear.
+- "ask_explain" — ask the candidate to talk through their approach out loud. Use when they've been coding silently and their direction isn't clear.`;
 
-## Problem the candidate is solving
+  return [
+    {
+      type: "text" as const,
+      text: `${personaFor(s.interviewKind)}
+
+${rubric}
+
+## ${s.interviewKind === "THEORY" ? "Interview brief and question bank" : "Problem the candidate is solving"}
 
 ### ${s.problemTitle}
 
 ${s.problemPrompt}
 
-Constraints:
+${s.interviewKind === "THEORY" ? "Format notes:" : "Constraints:"}
 ${s.problemConstraints}`,
       cache_control: { type: "ephemeral" as const },
     },
@@ -163,6 +199,19 @@ function formatTranscript(turns: TranscriptTurn[]): string {
 }
 
 function buildStateMessage(s: SessionSnapshot): string {
+  if (s.interviewKind === "THEORY") {
+    return `## Session state
+
+- Trigger for this check: ${s.trigger}
+- Elapsed time: ${Math.round(s.elapsedSec / 60)}m ${s.elapsedSec % 60}s
+- Your unprompted interventions so far: ${s.interventionCount}
+
+## Conversation so far
+${formatTranscript(s.recentTranscript)}
+
+Decide your action now. If the conversation shows an unanswered question from you, stay silent unless the candidate has been quiet for a long time.`;
+  }
+
   return `## Session state
 
 - Trigger for this check: ${s.trigger}
@@ -262,18 +311,28 @@ Reply to them directly, in character, in 1-3 sentences. Answer clarifying questi
 }
 
 /** Opening greeting when a session starts. Static fallback keeps startup instant if the API hiccups. */
-export async function openingMessage(problemTitle: string): Promise<string> {
-  const fallback = `Hi! I'm your interviewer today. We'll be working on "${problemTitle}". Take a moment to read the problem, feel free to ask clarifying questions, and talk me through your approach whenever you're ready.`;
+export async function openingMessage(
+  problemTitle: string,
+  kind: InterviewKind = "CODING",
+  problemPrompt = "",
+): Promise<string> {
+  const fallback =
+    kind === "THEORY"
+      ? `Hi! I'm your interviewer today — this session is an oral interview on "${problemTitle}". No editor needed: I'll ask questions one at a time and we'll discuss. Ready when you are — say hello and we'll begin.`
+      : `Hi! I'm your interviewer today. We'll be working on "${problemTitle}". Take a moment to read the problem, feel free to ask clarifying questions, and talk me through your approach whenever you're ready.`;
   try {
     const response = await anthropic.messages.create({
       model: routeModel("interview"),
-      max_tokens: 200,
+      max_tokens: 300,
       output_config: { effort: "low" },
-      system: INTERVIEWER_PERSONA,
+      system: personaFor(kind),
       messages: [
         {
           role: "user",
-          content: `The interview is starting. The problem is "${problemTitle}". Greet the candidate in 1-2 warm, professional sentences and invite them to read the problem and ask clarifying questions. Do not restate the problem.`,
+          content:
+            kind === "THEORY"
+              ? `The oral interview is starting. The topic is "${problemTitle}". Your question bank:\n\n${problemPrompt}\n\nGreet the candidate warmly in 1-2 sentences, explain that you'll ask questions one at a time, then ask your FIRST question from the bank.`
+              : `The interview is starting. The problem is "${problemTitle}". Greet the candidate in 1-2 warm, professional sentences and invite them to read the problem and ask clarifying questions. Do not restate the problem.`,
         },
       ],
     });

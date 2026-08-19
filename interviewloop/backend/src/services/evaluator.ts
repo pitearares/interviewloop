@@ -60,6 +60,15 @@ Ground rules:
 - Correctness weighs the final code and the test-run results. Communication weighs how they explained themselves and engaged with your questions. A silent candidate with perfect code should hear that; a communicative candidate with a near-miss should hear that too.
 - Advice items must be concrete actions ("practice narrating your approach before typing", not "communicate better").`;
 
+const THEORY_EVALUATOR_SYSTEM = `You are a senior engineer writing the debrief for a practice ORAL technical interview (knowledge Q&A over chat — no code editor was involved). You have the full conversation transcript and the interviewer's question bank. Write honest, specific, encouraging feedback.
+
+Ground rules:
+- This is practice, so frame the verdict as practice feedback ("in a real interview this would likely read as...") rather than a judgment of the person.
+- "Correctness" here means technical accuracy and depth of the answers given: which questions were answered well, which were wrong or shallow, and what the right answer would have touched on. Reference specific exchanges.
+- "Communication" weighs clarity, structure, use of concrete examples, and how they handled follow-ups or gaps in knowledge.
+- "Code quality" should assess any code sketches shared in chat, or, if none, comment on whether concrete examples would have strengthened the answers.
+- Advice items must be concrete actions ("review how HashMap handles collisions", not "study more").`;
+
 interface TranscriptRow {
   type: string;
   content: string;
@@ -168,16 +177,16 @@ export async function evaluateSession(sessionId: string): Promise<EvaluationResu
   });
   if (!session) throw new Error("Session not found");
 
+  const isTheory = session.problem.kind === "THEORY";
+
   const lastSnapshot = [...session.transcriptEntries]
     .reverse()
     .find((e) => e.type === "CODE_SNAPSHOT");
   const finalCode = lastSnapshot?.content ?? null;
 
-  const runSummary = await summarizeFinalRun(
-    session.language,
-    finalCode,
-    session.problem.testCases,
-  );
+  const runSummary = isTheory
+    ? "Not applicable — this was an oral interview with no coding component."
+    : await summarizeFinalRun(session.language, finalCode, session.problem.testCases);
 
   const durationSec =
     session.durationSec ??
@@ -185,18 +194,18 @@ export async function evaluateSession(sessionId: string): Promise<EvaluationResu
       ((session.endedAt ?? new Date()).getTime() - session.startedAt.getTime()) / 1000,
     );
 
-  const userMessage = `## Problem
+  const userMessage = `## ${isTheory ? "Interview brief and question bank" : "Problem"}
 
 ### ${session.problem.title} (${session.problem.difficulty})
 
 ${session.problem.prompt}
 
-Constraints:
+${isTheory ? "Format notes:" : "Constraints:"}
 ${session.problem.constraints}
 
 ## Session facts
 
-- Language: ${session.language}
+- ${isTheory ? "Format: oral Q&A over chat" : `Language: ${session.language}`}
 - Duration: ${Math.floor(durationSec / 60)}m ${durationSec % 60}s
 - Result of running the final code against the example test cases: ${runSummary}
 
@@ -212,7 +221,7 @@ Write the evaluation report now.`;
     output_config: {
       format: { type: "json_schema", schema: REPORT_SCHEMA },
     },
-    system: EVALUATOR_SYSTEM,
+    system: isTheory ? THEORY_EVALUATOR_SYSTEM : EVALUATOR_SYSTEM,
     messages: [{ role: "user", content: userMessage }],
   });
 

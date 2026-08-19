@@ -1,41 +1,49 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { EvaluationReport, Verdict } from "../lib/types";
+import { PageShell } from "../components/SiteNav";
+import {
+  Button,
+  Eyebrow,
+  LinkButton,
+  SectionMark,
+  VERDICT_LABELS,
+  VERDICT_TONE,
+  type BadgeTone,
+} from "../components/ui";
 
-const VERDICT_META: Record<Verdict, { label: string; sub: string; classes: string }> = {
-  STRONG_HIRE: {
-    label: "Strong Hire",
-    sub: "In a real interview, this session would have read as a clear yes.",
-    classes: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-  },
-  HIRE: {
-    label: "Hire",
-    sub: "A solid session — this would likely have read as a yes.",
-    classes: "border-accent/30 bg-accent/10 text-accent",
-  },
-  LEANING_NO: {
-    label: "Leaning No",
-    sub: "Close, but this session would probably not have cleared the bar yet.",
-    classes: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  },
-  NO: {
-    label: "No",
-    sub: "This one didn't land — the advice below is where to focus.",
-    classes: "border-red-400/30 bg-red-400/10 text-red-300",
-  },
+const VERDICT_SUB: Record<Verdict, string> = {
+  STRONG_HIRE: "In a real interview, this session would have read as a clear yes.",
+  HIRE: "A solid session — this would likely have read as a yes.",
+  LEANING_NO: "Close, but this session would probably not have cleared the bar yet.",
+  NO: "This one didn't land — the advice below is where to focus.",
+};
+
+const VERDICT_SURFACE: Record<BadgeTone, string> = {
+  neutral: "text-ink-bright",
+  mint: "text-[#6fdcc6] shadow-[inset_0_0_0_1px_rgba(38,150,132,0.34)]",
+  amber: "text-[#f09b7f] shadow-[inset_0_0_0_1px_rgba(228,109,76,0.34)]",
+  crimson: "text-[#ff6b87] shadow-[inset_0_0_0_1px_rgba(252,28,70,0.32)]",
+  violet: "text-[#a68cff] shadow-[inset_0_0_0_1px_rgba(102,58,243,0.36)]",
 };
 
 function GeneratingState() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4">
-      <div className="flex items-center gap-1.5">
-        <span className="h-2 w-2 animate-bounce rounded-full bg-accent [animation-delay:-0.3s]" />
-        <span className="h-2 w-2 animate-bounce rounded-full bg-accent [animation-delay:-0.15s]" />
-        <span className="h-2 w-2 animate-bounce rounded-full bg-accent" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 px-6 text-center">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-violet [animation-delay:-0.3s]" />
+        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-violet [animation-delay:-0.15s]" />
+        <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-violet" />
       </div>
-      <p className="text-sm text-ink-muted">Your interviewer is writing up the debrief...</p>
-      <p className="text-xs text-ink-faint">This usually takes a few seconds.</p>
+      <div>
+        <p className="font-display text-2xl font-semibold text-ink-bright">
+          Writing up the debrief
+        </p>
+        <p className="mt-2 text-sm text-ink-faint">
+          Your interviewer is reviewing the transcript and your final code.
+        </p>
+      </div>
     </div>
   );
 }
@@ -51,11 +59,11 @@ function ReportSection({
 }) {
   return (
     <section
-      className="animate-report-in rounded-xl border border-surface-border bg-surface-panel p-5 opacity-0 [animation-fill-mode:forwards]"
+      className="glass animate-report-in rounded-card p-7 opacity-0 shadow-hairline [animation-fill-mode:forwards]"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">{title}</h2>
-      <div className="text-sm leading-relaxed text-ink-muted">{children}</div>
+      <Eyebrow>{title}</Eyebrow>
+      <div className="mt-4 text-sm leading-relaxed text-ink-muted">{children}</div>
     </section>
   );
 }
@@ -95,95 +103,106 @@ export default function EvaluationPage() {
 
   if (error) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-sm text-red-300">{error}</p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => {
-              setError(null);
-              setReport(null);
-              api
-                .evaluateSession(sessionId!)
-                .then(setReport)
-                .catch((err) =>
-                  setError(err instanceof Error ? err.message : "Failed to generate the report"),
-                );
-            }}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90"
-          >
-            Try again
-          </button>
-          <Link
-            to="/history"
-            className="rounded-lg border border-surface-border px-4 py-2 text-sm text-ink-muted hover:text-ink"
-          >
-            Back to history
-          </Link>
+      <PageShell>
+        <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-6 px-6 text-center">
+          <p className="text-sm text-[#ff6b87]">{error}</p>
+          <div className="flex gap-3">
+            <Button
+              variant="primary"
+              onClick={() => {
+                setError(null);
+                setReport(null);
+                api
+                  .evaluateSession(sessionId!)
+                  .then(setReport)
+                  .catch((err) =>
+                    setError(err instanceof Error ? err.message : "Failed to generate the report"),
+                  );
+              }}
+            >
+              Try again
+            </Button>
+            <LinkButton to="/history" variant="outline">
+              Back to history
+            </LinkButton>
+          </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
-  if (!report) return <GeneratingState />;
+  if (!report) {
+    return (
+      <PageShell>
+        <GeneratingState />
+      </PageShell>
+    );
+  }
 
-  const verdict = VERDICT_META[report.verdict] ?? VERDICT_META.LEANING_NO;
+  const tone = VERDICT_TONE[report.verdict] ?? "neutral";
 
   return (
-    <div className="mx-auto min-h-full max-w-3xl px-6 py-12">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">
-            Interview debrief
+    <PageShell>
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-crimson" />
+          <Eyebrow className="text-crimson">Interview debrief</Eyebrow>
+        </div>
+
+        <h1 className="mt-6 font-display text-display-md font-bold uppercase text-ink-bright">
+          {problemTitle || "Your session"}
+        </h1>
+
+        {/* Verdict */}
+        <div
+          className={`glass animate-report-in mt-10 rounded-card p-9 text-center opacity-0 [animation-fill-mode:forwards] ${VERDICT_SURFACE[tone]}`}
+        >
+          <Eyebrow>Verdict</Eyebrow>
+          <p className="mt-4 font-display text-display-md font-bold uppercase">
+            {VERDICT_LABELS[report.verdict] ?? report.verdict}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold text-ink">{problemTitle || "Your session"}</h1>
+          <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-ink-faint">
+            {VERDICT_SUB[report.verdict]}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            to="/history"
-            className="rounded-lg border border-surface-border px-3.5 py-2 text-sm text-ink-muted transition-colors hover:border-accent/40 hover:text-ink"
-          >
-            History
-          </Link>
-          <Link
-            to="/"
-            className="rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/90"
-          >
+
+        <div className="mt-14">
+          <SectionMark>The breakdown</SectionMark>
+        </div>
+
+        <div className="mt-10 space-y-4">
+          <ReportSection title="Correctness" delay={120}>
+            {report.correctness}
+          </ReportSection>
+          <ReportSection title="Communication" delay={220}>
+            {report.communication}
+          </ReportSection>
+          <ReportSection title="Code quality" delay={320}>
+            {report.codeQuality}
+          </ReportSection>
+          <ReportSection title="Advice for next time" delay={420}>
+            <ul className="space-y-3.5">
+              {report.advice.map((item, i) => (
+                <li key={i} className="flex gap-3.5">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-pill bg-crimson-soft font-mono text-[0.65rem] text-[#ff6b87] shadow-[inset_0_0_0_1px_rgba(252,28,70,0.32)]">
+                    {i + 1}
+                  </span>
+                  <span className="pt-0.5">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </ReportSection>
+        </div>
+
+        <div className="mt-12 flex justify-center gap-3">
+          <LinkButton to="/practice" variant="primary" size="lg">
             Practice again
-          </Link>
+          </LinkButton>
+          <LinkButton to="/dashboard" variant="outline" size="lg">
+            View dashboard
+          </LinkButton>
         </div>
       </div>
-
-      <div
-        className={`animate-report-in mb-6 rounded-xl border p-6 opacity-0 [animation-fill-mode:forwards] ${verdict.classes}`}
-      >
-        <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Verdict</p>
-        <p className="mt-1 text-2xl font-semibold">{verdict.label}</p>
-        <p className="mt-1 text-sm opacity-80">{verdict.sub}</p>
-      </div>
-
-      <div className="space-y-4">
-        <ReportSection title="Correctness" delay={120}>
-          {report.correctness}
-        </ReportSection>
-        <ReportSection title="Communication" delay={220}>
-          {report.communication}
-        </ReportSection>
-        <ReportSection title="Code quality" delay={320}>
-          {report.codeQuality}
-        </ReportSection>
-        <ReportSection title="Advice for next time" delay={420}>
-          <ul className="space-y-2">
-            {report.advice.map((item, i) => (
-              <li key={i} className="flex gap-2.5">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-mono text-xs text-accent">
-                  {i + 1}
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </ReportSection>
-      </div>
-    </div>
+    </PageShell>
   );
 }

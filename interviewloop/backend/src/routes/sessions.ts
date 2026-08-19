@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db/prisma.js";
 import { evaluateSession } from "../services/evaluator.js";
+import type { AuthedRequest } from "../services/auth.js";
 
 const router = Router();
 
@@ -8,7 +9,7 @@ const router = Router();
 const evaluating = new Map<string, Promise<unknown>>();
 
 // POST /api/sessions — start a new interview session for a problem
-router.post("/", async (req, res) => {
+router.post("/", async (req: AuthedRequest, res) => {
   const { problemId, language } = req.body as { problemId?: string; language?: string };
   if (!problemId) {
     return res.status(400).json({ error: "problemId is required" });
@@ -22,6 +23,7 @@ router.post("/", async (req, res) => {
   const session = await prisma.interviewSession.create({
     data: {
       problemId,
+      userId: req.userId,
       language: language ?? "javascript",
     },
   });
@@ -29,9 +31,10 @@ router.post("/", async (req, res) => {
   res.status(201).json(session);
 });
 
-// GET /api/sessions — history list (past sessions with problem + verdict)
-router.get("/", async (_req, res) => {
+// GET /api/sessions — history list for the signed-in user
+router.get("/", async (req: AuthedRequest, res) => {
   const sessions = await prisma.interviewSession.findMany({
+    where: { userId: req.userId },
     include: {
       problem: { select: { title: true, slug: true, difficulty: true } },
       evaluationReport: { select: { verdict: true } },
@@ -41,12 +44,17 @@ router.get("/", async (_req, res) => {
   res.json(sessions);
 });
 
+/** Legacy pre-account sessions have no owner; everyone else only sees their own. */
+function ownedBy(session: { userId: string | null }, userId: string | undefined): boolean {
+  return session.userId === null || session.userId === userId;
+}
+
 // POST /api/sessions/:id/evaluate — generate (or return existing) evaluation report.
 // Idempotent, and concurrent calls for the same session share one generation.
-router.post("/:id/evaluate", async (req, res) => {
+router.post("/:id/evaluate", async (req: AuthedRequest, res) => {
   const sessionId = req.params.id;
   const session = await prisma.interviewSession.findUnique({ where: { id: sessionId } });
-  if (!session) {
+  if (!session || !ownedBy(session, req.userId)) {
     return res.status(404).json({ error: "Session not found" });
   }
 
@@ -65,7 +73,7 @@ router.post("/:id/evaluate", async (req, res) => {
 });
 
 // GET /api/sessions/:id — full session detail (transcript + report)
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: AuthedRequest, res) => {
   const session = await prisma.interviewSession.findUnique({
     where: { id: req.params.id },
     include: {
@@ -74,7 +82,7 @@ router.get("/:id", async (req, res) => {
       evaluationReport: true,
     },
   });
-  if (!session) {
+  if (!session || !ownedBy(session, req.userId)) {
     return res.status(404).json({ error: "Session not found" });
   }
   res.json(session);

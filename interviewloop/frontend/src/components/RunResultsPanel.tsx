@@ -1,4 +1,5 @@
 import type { RunResult } from "../lib/types";
+import { Badge } from "./ui";
 
 function stringify(value: unknown): string {
   return JSON.stringify(value);
@@ -7,44 +8,51 @@ function stringify(value: unknown): string {
 export function RunResultsPanel({ result }: { result: RunResult }) {
   if (result.runtimeError) {
     return (
-      <div className="border-t border-surface-border bg-surface-raised px-4 py-3">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-400">Runtime error</p>
-        <pre className="whitespace-pre-wrap font-mono text-xs text-red-300">{result.runtimeError}</pre>
+      <div className="border-t border-surface-border px-5 py-4">
+        <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[#ff6b87]">
+          Runtime error
+        </span>
+        <pre className="mt-2.5 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-control bg-crimson-soft p-3 font-mono text-xs leading-relaxed text-[#ff6b87] shadow-[inset_0_0_0_1px_rgba(252,28,70,0.32)]">
+          {result.runtimeError}
+        </pre>
       </div>
     );
   }
 
+  const passed = result.results.filter((r) => r.passed).length;
+
   return (
-    <div className="max-h-56 overflow-y-auto border-t border-surface-border bg-surface-raised px-4 py-3">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Test results</p>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            result.allPassed ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400"
-          }`}
-        >
-          {result.results.filter((r) => r.passed).length} / {result.results.length} passed
+    <div className="max-h-64 overflow-y-auto border-t border-surface-border px-5 py-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-ink-ghost">
+          Test results
         </span>
+        <Badge tone={result.allPassed ? "mint" : "crimson"}>
+          {passed} / {result.results.length} passed
+        </Badge>
       </div>
-      <div className="space-y-1.5">
+
+      <div className="space-y-2">
         {result.results.map((r, i) => (
           <div
             key={i}
-            className={`rounded-md border px-3 py-1.5 font-mono text-xs ${
+            className={`rounded-control px-3.5 py-2.5 font-mono text-xs leading-relaxed ${
               r.passed
-                ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
-                : "border-red-400/20 bg-red-400/5 text-red-300"
+                ? "bg-mint-soft text-[#6fdcc6] shadow-[inset_0_0_0_1px_rgba(38,150,132,0.34)]"
+                : "bg-crimson-soft text-[#ff6b87] shadow-[inset_0_0_0_1px_rgba(252,28,70,0.32)]"
             }`}
           >
             <div>
-              Input: <span className="text-ink-muted">{stringify(r.input)}</span>
+              <span className="opacity-60">Input: </span>
+              <span className="text-ink-muted">{stringify(r.input)}</span>
             </div>
-            <div>
-              Expected: <span className="text-ink-muted">{stringify(r.expected)}</span>
+            <div className="mt-0.5">
+              <span className="opacity-60">Expected: </span>
+              <span className="text-ink-muted">{stringify(r.expected)}</span>
               {!r.passed && (
                 <>
-                  {" "}
-                  &middot; Got: <span className="text-ink-muted">{r.error ?? stringify(r.actual)}</span>
+                  <span className="opacity-60"> · Got: </span>
+                  <span className="text-ink-muted">{r.error ?? stringify(r.actual)}</span>
                 </>
               )}
             </div>

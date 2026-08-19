@@ -12,6 +12,8 @@ router.get("/", async (_req, res) => {
       slug: true,
       difficulty: true,
       topic: true,
+      kind: true,
+      track: true,
     },
     orderBy: { createdAt: "asc" },
   });

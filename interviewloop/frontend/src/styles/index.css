@@ -7,3 +7,94 @@ body,
 #root {
   height: 100%;
 }
+
+body {
+  background-color: #05060f;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  /* Blueprint grid + spotlight halo — the ambient page atmosphere. */
+  .atmosphere {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .atmosphere::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background-image:
+      linear-gradient(to right, rgba(186, 215, 247, 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(186, 215, 247, 0.055) 1px, transparent 1px);
+    background-size: 88px 88px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 78%);
+  }
+
+  .atmosphere::after {
+    content: "";
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    height: 62vh;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 100% at 50% -10%, rgba(102, 58, 243, 0.16), transparent 62%),
+      radial-gradient(ellipse 46% 80% at 50% -4%, rgba(124, 145, 182, 0.14), transparent 58%);
+  }
+
+  .glass {
+    background: rgba(186, 214, 247, 0.03);
+    box-shadow:
+      inset 0 1px 1px rgba(216, 236, 248, 0.12),
+      inset 0 24px 48px rgba(168, 216, 245, 0.045),
+      0 16px 32px rgba(0, 0, 0, 0.34);
+  }
+
+  .glass-solid {
+    background: rgba(8, 10, 20, 0.86);
+    backdrop-filter: blur(14px);
+    box-shadow:
+      inset 0 0 0 1px rgba(186, 215, 247, 0.1),
+      inset 0 1px 1px rgba(216, 236, 248, 0.12);
+  }
+
+  /* Section eyebrow flanked by fading hairlines (AuthKit's section marker). */
+  .rule-fade {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(186, 215, 247, 0.16), transparent);
+  }
+
+  .skywash {
+    background: linear-gradient(180deg, #ffffff 0%, #98c0ef 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Scrollbars tuned to the midnight canvas. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(186, 215, 247, 0.16) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(186, 215, 247, 0.16);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(186, 215, 247, 0.28);
+}

@@ -1,32 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import type { InterviewSessionSummary } from "../lib/types";
-
-const DIFFICULTY_STYLES: Record<string, string> = {
-  EASY: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  MEDIUM: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-};
-
-const VERDICT_STYLES: Record<string, string> = {
-  STRONG_HIRE: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  HIRE: "text-accent bg-accent/10 border-accent/20",
-  LEANING_NO: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-  NO: "text-red-400 bg-red-400/10 border-red-400/20",
-};
-
-const VERDICT_LABELS: Record<string, string> = {
-  STRONG_HIRE: "Strong Hire",
-  HIRE: "Hire",
-  LEANING_NO: "Leaning No",
-  NO: "No",
-};
+import { PageShell } from "../components/SiteNav";
+import {
+  Badge,
+  Card,
+  DIFFICULTY_TONE,
+  ErrorNote,
+  Eyebrow,
+  LinkButton,
+  Spinner,
+  VERDICT_LABELS,
+  VERDICT_TONE,
+} from "../components/ui";
 
 const STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: "In progress",
   COMPLETED: "Completed",
   ABANDONED: "Abandoned",
 };
+
+const FILTERS = [
+  { value: "all", label: "All" },
+  { value: "graded", label: "Graded" },
+  { value: "IN_PROGRESS", label: "In progress" },
+] as const;
+
+type Filter = (typeof FILTERS)[number]["value"];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -38,55 +39,51 @@ function formatDate(iso: string): string {
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return "—";
-  const m = Math.floor(sec / 60);
-  return `${m}m`;
+  return `${Math.max(1, Math.round(sec / 60))}m`;
 }
 
 function SessionRow({ session }: { session: InterviewSessionSummary }) {
-  const content = (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-surface-border bg-surface-panel px-5 py-4 transition-colors hover:border-accent/40 hover:bg-surface-raised">
-      <div className="flex items-center gap-3">
-        <span
-          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-            DIFFICULTY_STYLES[session.problem.difficulty] ?? ""
-          }`}
-        >
+  const inner = (
+    <div className="glass flex items-center justify-between gap-4 rounded-card px-6 py-5 shadow-hairline transition-all duration-200 hover:shadow-lift">
+      <div className="flex min-w-0 items-center gap-4">
+        <Badge tone={DIFFICULTY_TONE[session.problem.difficulty] ?? "neutral"}>
           {session.problem.difficulty}
-        </span>
-        <div>
-          <p className="text-sm font-medium text-ink">{session.problem.title}</p>
-          <p className="text-xs text-ink-faint">
-            {formatDate(session.startedAt)} &middot; {formatDuration(session.durationSec)}
+        </Badge>
+        <div className="min-w-0">
+          <p className="truncate font-display text-base font-semibold text-ink-bright">
+            {session.problem.title}
+          </p>
+          <p className="mt-1 text-xs text-ink-ghost">
+            {formatDate(session.startedAt)} · {formatDuration(session.durationSec)}
           </p>
         </div>
       </div>
 
       {session.evaluationReport ? (
-        <span
-          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-            VERDICT_STYLES[session.evaluationReport.verdict] ?? ""
-          }`}
-        >
+        <Badge tone={VERDICT_TONE[session.evaluationReport.verdict] ?? "neutral"}>
           {VERDICT_LABELS[session.evaluationReport.verdict] ?? session.evaluationReport.verdict}
-        </span>
+        </Badge>
       ) : (
-        <span className="text-xs text-ink-faint">{STATUS_LABELS[session.status] ?? session.status}</span>
+        <span className="shrink-0 font-mono text-eyebrow uppercase text-ink-ghost">
+          {STATUS_LABELS[session.status] ?? session.status}
+        </span>
       )}
     </div>
   );
 
   if (session.evaluationReport) {
-    return <Link to={`/evaluation/${session.id}`}>{content}</Link>;
+    return <Link to={`/evaluation/${session.id}`}>{inner}</Link>;
   }
   if (session.status === "IN_PROGRESS") {
-    return <Link to={`/interview/${session.id}`}>{content}</Link>;
+    return <Link to={`/interview/${session.id}`}>{inner}</Link>;
   }
-  return content;
+  return inner;
 }
 
 export default function HistoryPage() {
   const [sessions, setSessions] = useState<InterviewSessionSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
     api
@@ -95,40 +92,83 @@ export default function HistoryPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load history"));
   }, []);
 
+  const visible = useMemo(() => {
+    if (!sessions) return [];
+    if (filter === "all") return sessions;
+    if (filter === "graded") return sessions.filter((s) => s.evaluationReport !== null);
+    return sessions.filter((s) => s.status === filter);
+  }, [sessions, filter]);
+
   return (
-    <div className="mx-auto min-h-full max-w-3xl px-6 py-12">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink">History</h1>
-          <p className="mt-1 text-sm text-ink-muted">Track your practice sessions over time.</p>
+    <PageShell>
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-crimson" />
+          <Eyebrow className="text-crimson">Every run, recorded</Eyebrow>
         </div>
-        <Link
-          to="/"
-          className="rounded-lg border border-surface-border px-3.5 py-2 text-sm text-ink-muted transition-colors hover:border-accent/40 hover:text-ink"
-        >
-          New interview
-        </Link>
+
+        <h1 className="mt-6 font-display text-display-lg font-bold uppercase text-ink-bright">
+          History
+        </h1>
+
+        {sessions && sessions.length > 0 && (
+          <div className="mt-10 flex gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`rounded-pill px-3.5 py-1.5 text-xs font-medium transition-all ${
+                  filter === f.value
+                    ? "bg-crimson text-white shadow-glow-crimson"
+                    : "bg-surface-raised text-ink-faint shadow-hairline hover:text-ink-bright"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-8">
+            <ErrorNote>{error}</ErrorNote>
+          </div>
+        )}
+
+        {!sessions && !error && (
+          <div className="mt-12">
+            <Spinner />
+          </div>
+        )}
+
+        {sessions && sessions.length === 0 && (
+          <Card className="mt-12 p-16 text-center">
+            <h2 className="font-display text-2xl font-semibold text-ink-bright">
+              Nothing here yet
+            </h2>
+            <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-ink-faint">
+              Your sessions land here the moment you finish one.
+            </p>
+            <div className="mt-8 flex justify-center">
+              <LinkButton to="/practice" variant="primary">
+                Start your first interview
+              </LinkButton>
+            </div>
+          </Card>
+        )}
+
+        {sessions && sessions.length > 0 && (
+          <div className="mt-6 space-y-3">
+            {visible.length === 0 ? (
+              <Card className="p-12 text-center">
+                <p className="text-sm text-ink-faint">No sessions match that filter.</p>
+              </Card>
+            ) : (
+              visible.map((s) => <SessionRow key={s.id} session={s} />)
+            )}
+          </div>
+        )}
       </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-400/20 bg-red-400/5 px-4 py-2 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      {!sessions && <p className="text-sm text-ink-faint">Loading...</p>}
-
-      {sessions && sessions.length === 0 && (
-        <p className="text-sm text-ink-faint">No sessions yet — start your first interview.</p>
-      )}
-
-      {sessions && sessions.length > 0 && (
-        <div className="space-y-3">
-          {sessions.map((s) => (
-            <SessionRow key={s.id} session={s} />
-          ))}
-        </div>
-      )}
-    </div>
+    </PageShell>
   );
 }

@@ -6,6 +6,7 @@ import {
   openingMessage,
   respondToCandidate,
   type EvaluationTrigger,
+  type InterviewKind,
   type SessionSnapshot,
   type TranscriptTurn,
 } from "./interviewer.js";
@@ -37,6 +38,7 @@ interface LiveSession {
     title: string;
     prompt: string;
     constraints: string;
+    kind: InterviewKind;
   };
   language: string;
   startedAt: number;
@@ -81,6 +83,7 @@ function snapshotOf(s: LiveSession, trigger: EvaluationTrigger): SessionSnapshot
     problemTitle: s.problem.title,
     problemPrompt: s.problem.prompt,
     problemConstraints: s.problem.constraints,
+    interviewKind: s.problem.kind,
     language: s.language,
     currentCode: s.currentCode,
     previousCode: s.lastConsultedCode,
@@ -187,6 +190,7 @@ export const sessionManager = {
           title: session.problem.title,
           prompt: session.problem.prompt,
           constraints: session.problem.constraints,
+          kind: session.problem.kind === "THEORY" ? "THEORY" : "CODING",
         },
         language: session.language,
         startedAt: Date.now(),
@@ -209,7 +213,7 @@ export const sessionManager = {
       armCodeTimers(io, s);
 
       enqueue(s, async () => {
-        const greeting = await openingMessage(s.problem.title);
+        const greeting = await openingMessage(s.problem.title, s.problem.kind, s.problem.prompt);
         await emitInterviewerMessage(io, s, "INTERVIEWER_QUESTION", greeting);
         // The greeting shouldn't count against the unprompted-intervention budget.
         s.interventionCount = 0;

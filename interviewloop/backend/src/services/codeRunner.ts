@@ -215,5 +215,17 @@ export async function runCode(
   if (language === "python") {
     return runPython(code, testCases);
   }
+  if (language === "java" || language === "cpp") {
+    // No JDK / C++ toolchain in this environment. The interviewer still
+    // watches the code live and the evaluator grades it by reading — only
+    // automated test execution is unavailable.
+    return {
+      results: [],
+      allPassed: false,
+      runtimeError:
+        `Automated ${language === "java" ? "Java" : "C++"} execution isn't available in this environment. ` +
+        "Your interviewer reviews the code as you write it, and the final evaluation grades it by reading — keep going.",
+    };
+  }
   return runJavaScript(code, testCases);
 }

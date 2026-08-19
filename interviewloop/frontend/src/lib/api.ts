@@ -4,6 +4,8 @@ import type {
   InterviewSessionSummary,
   InterviewSessionDetail,
   RunResult,
+  PracticeStats,
+  AuthUser,
 } from "./types";
 
 const BASE_URL = "/api";
@@ -30,6 +32,19 @@ function parseProblemDetail(raw: RawProblemDetail): ProblemDetail {
 }
 
 export const api = {
+  register: (email: string, name: string, password: string) =>
+    request<AuthUser>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, name, password }),
+    }),
+  login: (email: string, password: string) =>
+    request<AuthUser>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
+  me: () => request<{ user: AuthUser | null }>("/auth/me"),
+
   getProblems: () => request<ProblemSummary[]>("/problems"),
   getProblem: async (slug: string) => parseProblemDetail(await request<RawProblemDetail>(`/problems/${slug}`)),
 
@@ -57,6 +72,8 @@ export const api = {
 
   evaluateSession: (id: string) =>
     request<import("./types").EvaluationReport>(`/sessions/${id}/evaluate`, { method: "POST" }),
+
+  getStats: () => request<PracticeStats>("/stats"),
 
   runCode: (problemId: string, language: string, code: string) =>
     request<RunResult>("/run", {

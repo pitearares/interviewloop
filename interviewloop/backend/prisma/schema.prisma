@@ -3,39 +3,70 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// SQLite has no native enum support in Prisma — these are documented as
-// plain strings and validated in application code (see src/types).
+// Enum-like fields are kept as plain strings (a SQLite-era decision that
+// still keeps the app code simple) and validated in application code.
 // Difficulty: "EASY" | "MEDIUM"
 // Topic: "ARRAYS_STRINGS" | "ALGORITHMS" | "DATA_STRUCTURES" | "DYNAMIC_PROGRAMMING"
+//        | "LANGUAGE_FUNDAMENTALS" | "OOP" | "COLLECTIONS" | "MEMORY_MANAGEMENT"
+// Kind: "CODING" | "THEORY"
+// Track: "GENERAL" | "JAVA" | "CPP"
 // SessionStatus: "IN_PROGRESS" | "COMPLETED" | "ABANDONED"
 // TranscriptEventType: "CODE_SNAPSHOT" | "INTERVIEWER_QUESTION" | "INTERVIEWER_NUDGE" | "CANDIDATE_ANSWER" | "SYSTEM_NOTE"
 // Verdict: "STRONG_HIRE" | "HIRE" | "LEANING_NO" | "NO"
 
 model Problem {
-  id            String   @id @default(cuid())
-  title         String
-  slug          String   @unique
-  difficulty    String
-  topic         String
-  prompt        String // markdown problem statement
-  constraints   String // markdown constraints list
-  examples      String // JSON-encoded array of {input, output, explanation}
-  starterCodeJs String
-  starterCodePy String
-  testCases     String // JSON-encoded array of {input, expected}
-  createdAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  difficulty      String
+  topic           String
+  kind            String   @default("CODING") // CODING = editor + tests, THEORY = oral Q&A
+  track           String   @default("GENERAL") // which interview track this belongs to
+  prompt          String // markdown problem statement (THEORY: the interviewer's question bank)
+  constraints     String // markdown constraints list (THEORY: interview format notes)
+  examples        String // JSON-encoded array of {input, output, explanation}
+  starterCodeJs   String
+  starterCodePy   String
+  starterCodeJava String   @default("")
+  starterCodeCpp  String   @default("")
+  testCases       String // JSON-encoded array of {input, expected}
+  createdAt       DateTime @default(now())
 
   sessions InterviewSession[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String // scrypt: salt:hash, both hex
+  createdAt    DateTime @default(now())
+
+  sessions     InterviewSession[]
+  authSessions AuthSession[]
+}
+
+// Opaque login tokens, stored server-side so logout genuinely revokes access.
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 }
 
 model InterviewSession {
   id          String    @id @default(cuid())
   problemId   String
   problem     Problem   @relation(fields: [problemId], references: [id])
+  // Optional so sessions recorded before accounts existed keep working.
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
   status      String    @default("IN_PROGRESS")
   language    String    @default("javascript")
   startedAt   DateTime  @default(now())

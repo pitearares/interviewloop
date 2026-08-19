@@ -15,7 +15,7 @@ import {
  * deterministic gate and prints every decision, so the gating behavior can
  * be inspected without spending a single token.
  *
- * Part 2 runs only when ANTHROPIC_API_KEY is set: it sends two contrasting
+ * Part 2 runs only when GEMINI_API_KEY is set: it sends two contrasting
  * snapshots (steady progress vs. clearly stuck) to the model and prints the
  * decisions, verifying the full loop including JSON decision parsing.
  */
@@ -32,6 +32,7 @@ function snap(overrides: Partial<SessionSnapshot>): SessionSnapshot {
     problemTitle: PROBLEM.title,
     problemPrompt: PROBLEM.prompt,
     problemConstraints: PROBLEM.constraints,
+    interviewKind: "CODING",
     language: "javascript",
     currentCode: "",
     previousCode: null,
@@ -142,11 +143,11 @@ for (const { label, s } of timeline) {
 }
 
 // ---------------------------------------------------------------------------
-// Part 2 — live model decisions (needs ANTHROPIC_API_KEY)
+// Part 2 — live model decisions (needs GEMINI_API_KEY)
 // ---------------------------------------------------------------------------
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.log("=== Part 2 skipped: set ANTHROPIC_API_KEY to exercise live model decisions ===");
+if (!process.env.GEMINI_API_KEY) {
+  console.log("=== Part 2 skipped: set GEMINI_API_KEY to exercise live model decisions ===");
 } else {
   console.log("=== Part 2: live model decisions ===\n");
 
