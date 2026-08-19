@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum support in Prisma — these are documented as
+// plain strings and validated in application code (see src/types).
+// Difficulty: "EASY" | "MEDIUM"
+// Topic: "ARRAYS_STRINGS" | "ALGORITHMS" | "DATA_STRUCTURES" | "DYNAMIC_PROGRAMMING"
+// SessionStatus: "IN_PROGRESS" | "COMPLETED" | "ABANDONED"
+// TranscriptEventType: "CODE_SNAPSHOT" | "INTERVIEWER_QUESTION" | "INTERVIEWER_NUDGE" | "CANDIDATE_ANSWER" | "SYSTEM_NOTE"
+// Verdict: "STRONG_HIRE" | "HIRE" | "LEANING_NO" | "NO"
+
+model Problem {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique
+  difficulty    String
+  topic         String
+  prompt        String // markdown problem statement
+  constraints   String // markdown constraints list
+  examples      String // JSON-encoded array of {input, output, explanation}
+  starterCodeJs String
+  starterCodePy String
+  testCases     String // JSON-encoded array of {input, expected}
+  createdAt     DateTime @default(now())
+
+  sessions InterviewSession[]
+}
+
+model InterviewSession {
+  id          String    @id @default(cuid())
+  problemId   String
+  problem     Problem   @relation(fields: [problemId], references: [id])
+  status      String    @default("IN_PROGRESS")
+  language    String    @default("javascript")
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  durationSec Int? // wall-clock duration once ended
+
+  transcriptEntries TranscriptEntry[]
+  evaluationReport  EvaluationReport?
+}
+
+model TranscriptEntry {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   InterviewSession @relation(fields: [sessionId], references: [id])
+  type      String
+  content   String // code snapshot, question text, nudge text, or candidate answer
+  createdAt DateTime         @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+model EvaluationReport {
+  id            String           @id @default(cuid())
+  sessionId     String           @unique
+  session       InterviewSession @relation(fields: [sessionId], references: [id])
+  verdict       String
+  correctness   String // markdown assessment
+  communication String // markdown assessment
+  codeQuality   String // markdown assessment
+  advice        String // JSON-encoded array of 2-3 strings
+  createdAt     DateTime         @default(now())
+}
